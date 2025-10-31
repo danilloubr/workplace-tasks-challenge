@@ -1,0 +1,68 @@
+/* :host é o seletor para o próprio componente (app-login) */
+:host {
+  display: block; // Garante que o componente ocupa espaço
+}
+
+.login-container {
+  /* 1. Centralização do Cartão */
+  display: flex;
+  justify-content: center; // Centraliza horizontalmente
+  align-items: center;     // Centraliza verticalmente
+  min-height: 100vh;       // Ocupa 100% da altura da janela
+//   background-color: #f4f4f4; // Um fundo cinza claro, minimalista
+}
+
+mat-card {
+  width: 100%;
+  max-width: 400px; // Define uma largura máxima para o cartão
+  padding: 20px;
+}
+
+mat-card-header {
+  // Remove a margem padrão para um look mais limpo
+  padding-bottom: 16px; 
+}
+
+mat-card-title {
+  text-align: center;
+  font-size: 24px;
+  font-weight: 500;
+}
+
+mat-card-content {
+  position: relative; // Necessário para o spinner
+}
+
+.login-form {
+  /* 2. Layout do Formulário */
+  display: flex;
+  flex-direction: column; // Coloca os campos um abaixo do outro
+  gap: 10px; // Espaço entre os campos
+}
+
+.full-width {
+  width: 100%;
+}
+
+.login-error-message {
+  /* 3. Estilo da Mensagem de Erro */
+  color: red; // (Ou use a paleta 'warn' do Material)
+  text-align: center;
+  padding: 10px 0;
+  font-size: 14px;
+}
+
+.spinner-overlay {
+  /* 4. Spinner de Loading */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.7); // Fundo branco translúcido
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10; // Fica por cima do formulário
+  border-radius: 8px; // Arredonda as bordas (para o <mat-card>)
+}
