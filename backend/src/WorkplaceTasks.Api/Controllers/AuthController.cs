@@ -1,12 +1,12 @@
+// Em: backend/src/WorkplaceTasks.Api/Controllers/AuthController.cs
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using WorkplaceTasks.Application.DTOs;
-using WorkplaceTasks.Infrastructure.Data;
 using WorkplaceTasks.Domain.Entities;
+using WorkplaceTasks.Application.Interfaces;
 
 namespace WorkplaceTasks.Api.Controllers
 {
@@ -14,19 +14,19 @@ namespace WorkplaceTasks.Api.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly IUserRepository _userRepository;
         private readonly IConfiguration _configuration;
 
-        public AuthController(AppDbContext context, IConfiguration configuration)
+        public AuthController(IUserRepository userRepository, IConfiguration configuration)
         {
-            _context = context;
+            _userRepository = userRepository;
             _configuration = configuration;
         }
 
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto loginRequest)
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == loginRequest.Email);
+            var user = await _userRepository.GetByEmailAsync(loginRequest.Email);
 
             if (user == null)
             {

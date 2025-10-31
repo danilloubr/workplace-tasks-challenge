@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using WorkplaceTasks.Application.DTOs;
-using WorkplaceTasks.Domain.Enums;
-using WorkplaceTasks.Infrastructure.Data;
 using WorkplaceTasks.Application.Exceptions;
+using WorkplaceTasks.Application.Interfaces;
+using WorkplaceTasks.Domain.Entities;
+using WorkplaceTasks.Domain.Enums;
 
 namespace WorkplaceTasks.Api.Controllers
 {
@@ -14,17 +14,16 @@ namespace WorkplaceTasks.Api.Controllers
     [Authorize]
     public class TasksController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly ITaskRepository _taskRepository;
 
-        public TasksController(AppDbContext context)
+        public TasksController(ITaskRepository taskRepository)
         {
-            _context = context;
+            _taskRepository = taskRepository;
         }
 
         private Guid GetUserId()
         {
-            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            return Guid.TryParse(userIdString, out var userId) ? userId : Guid.Empty;
+            return Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         }
 
         private UserRole GetUserRole()
@@ -33,24 +32,28 @@ namespace WorkplaceTasks.Api.Controllers
             return Enum.TryParse<UserRole>(userRoleString, out var role) ? role : UserRole.Member;
         }
 
+        private TaskDto MapTaskToDto(Domain.Entities.Task task)
+        {
+            return new TaskDto
+            {
+                Id = task.Id,
+                Title = task.Title,
+                Description = task.Description,
+                Status = task.Status.ToString(),
+                CreatedAt = task.CreatedAt,
+                UpdatedAt = task.UpdatedAt,
+                CreatorId = task.CreatorId
+            };
+        }
+
         // GET: /api/tasks
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TaskDto>>> GetTasks()
         {
-            var tasks = await _context.Tasks
-                .Select(task => new TaskDto
-                {
-                    Id = task.Id,
-                    Title = task.Title,
-                    Description = task.Description,
-                    Status = task.Status.ToString(),
-                    CreatedAt = task.CreatedAt,
-                    UpdatedAt = task.UpdatedAt,
-                    CreatorId = task.CreatorId
-                })
-                .ToListAsync();
+            var tasks = await _taskRepository.GetAllAsync();
 
-            return Ok(tasks);
+            var taskDtos = tasks.Select(MapTaskToDto);
+            return Ok(taskDtos);
         }
 
         // POST: /api/tasks
@@ -64,51 +67,31 @@ namespace WorkplaceTasks.Api.Controllers
                 CreatorId = GetUserId()
             };
 
-            _context.Tasks.Add(task);
-            await _context.SaveChangesAsync();
+            var createdTask = await _taskRepository.AddAsync(task);
 
-            var taskDto = new TaskDto
-            {
-                Id = task.Id,
-                Title = task.Title,
-                Description = task.Description,
-                Status = task.Status.ToString(),
-                CreatedAt = task.CreatedAt,
-                UpdatedAt = task.UpdatedAt,
-                CreatorId = task.CreatorId
-            };
-
-            return CreatedAtAction(nameof(GetTaskById), new { id = task.Id }, taskDto);
+            var taskDto = MapTaskToDto(createdTask);
+            return CreatedAtAction(nameof(GetTaskById), new { id = taskDto.Id }, taskDto);
         }
 
         // GET: /api/tasks/{id}
         [HttpGet("{id}")]
         public async Task<ActionResult<TaskDto>> GetTaskById(Guid id)
         {
-            var task = await _context.Tasks.FindAsync(id);
+            var task = await _taskRepository.GetByIdAsync(id);
 
             if (task == null)
             {
-                return NotFound();
+                throw new NotFoundException($"Tarefa com ID {id} não encontrada.");
             }
 
-            return new TaskDto
-            {
-                Id = task.Id,
-                Title = task.Title,
-                Description = task.Description,
-                Status = task.Status.ToString(),
-                CreatedAt = task.CreatedAt,
-                UpdatedAt = task.UpdatedAt,
-                CreatorId = task.CreatorId
-            };
+            return Ok(MapTaskToDto(task));
         }
 
         // PUT: /api/tasks/{id}
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateTask(Guid id, [FromBody] UpdateTaskDto updateTaskDto)
         {
-            var task = await _context.Tasks.FindAsync(id);
+            var task = await _taskRepository.GetByIdAsync(id);
 
             if (task == null)
             {
@@ -125,8 +108,10 @@ namespace WorkplaceTasks.Api.Controllers
 
             task.Title = updateTaskDto.Title;
             task.Description = updateTaskDto.Description;
-            await _context.SaveChangesAsync();
+            task.Status = updateTaskDto.Status;
+            task.UpdatedAt = DateTime.UtcNow;
 
+            await _taskRepository.UpdateAsync(task);
             return NoContent();
         }
 
@@ -134,7 +119,7 @@ namespace WorkplaceTasks.Api.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTask(Guid id)
         {
-            var task = await _context.Tasks.FindAsync(id);
+            var task = await _taskRepository.GetByIdAsync(id);
 
             if (task == null)
             {
@@ -144,14 +129,15 @@ namespace WorkplaceTasks.Api.Controllers
             var userId = GetUserId();
             var userRole = GetUserRole();
 
-            if ((userRole == UserRole.Member || userRole == UserRole.Manager) && task.CreatorId != userId)
+            if (userRole == UserRole.Member || userRole == UserRole.Manager)
             {
-                throw new ForbiddenException("Managers e Membros só podem deletar as próprias tarefas.");
+                if (task.CreatorId != userId)
+                {
+                    throw new ForbiddenException("Managers e Membros só podem deletar as próprias tarefas.");
+                }
             }
 
-            _context.Tasks.Remove(task);
-            await _context.SaveChangesAsync();
-
+            await _taskRepository.DeleteAsync(task);
             return NoContent();
         }
     }

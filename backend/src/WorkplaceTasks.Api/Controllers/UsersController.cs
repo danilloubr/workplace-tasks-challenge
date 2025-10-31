@@ -1,13 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using WorkplaceTasks.Application.DTOs;
 using WorkplaceTasks.Application.Exceptions;
 using WorkplaceTasks.Domain.Entities;
 using WorkplaceTasks.Domain.Enums;
-using WorkplaceTasks.Infrastructure.Data;
-
+using WorkplaceTasks.Application.Interfaces;
 namespace WorkplaceTasks.Api.Controllers
 {
     [ApiController]
@@ -15,10 +13,11 @@ namespace WorkplaceTasks.Api.Controllers
     [Authorize]
     public class UsersController : ControllerBase
     {
-        private readonly AppDbContext _context;
-        public UsersController(AppDbContext context)
+        private readonly IUserRepository _userRepository;
+
+        public UsersController(IUserRepository userRepository)
         {
-            _context = context;
+            _userRepository = userRepository;
         }
 
         private Guid GetUserId()
@@ -48,7 +47,7 @@ namespace WorkplaceTasks.Api.Controllers
         public async Task<ActionResult<UserDto>> GetMyProfile()
         {
             var userId = GetUserId();
-            var user = await _context.Users.FindAsync(userId);
+            var user = await _userRepository.GetByIdAsync(userId);
 
             if (user == null)
             {
@@ -63,7 +62,7 @@ namespace WorkplaceTasks.Api.Controllers
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto updateProfileDto)
         {
             var userId = GetUserId();
-            var user = await _context.Users.FindAsync(userId);
+            var user = await _userRepository.GetByIdAsync(userId);
 
             if (user == null)
             {
@@ -76,14 +75,13 @@ namespace WorkplaceTasks.Api.Controllers
                 return BadRequest("A senha atual está incorreta.");
             }
 
-            if (await _context.Users.AnyAsync(u => u.Email == updateProfileDto.Email && u.Id != userId))
+            if (await _userRepository.AnyAsync(updateProfileDto.Email, userId))
             {
                 return BadRequest("Este email já está em uso por outra conta.");
             }
 
             user.Email = updateProfileDto.Email;
-            _context.Entry(user).State = EntityState.Modified;
-            await _context.SaveChangesAsync();
+            await _userRepository.UpdateAsync(user);
 
             return NoContent();
         }
@@ -93,7 +91,7 @@ namespace WorkplaceTasks.Api.Controllers
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto changePasswordDto)
         {
             var userId = GetUserId();
-            var user = await _context.Users.FindAsync(userId);
+            var user = await _userRepository.GetByIdAsync(userId);
 
             if (user == null)
             {
@@ -107,8 +105,7 @@ namespace WorkplaceTasks.Api.Controllers
             }
 
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(changePasswordDto.NewPassword);
-            _context.Entry(user).State = EntityState.Modified;
-            await _context.SaveChangesAsync();
+            await _userRepository.UpdateAsync(user);
 
             return NoContent();
         }
@@ -117,30 +114,26 @@ namespace WorkplaceTasks.Api.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<UserDto>>> GetUsers()
         {
-
             if (GetUserRole() != UserRole.Admin)
             {
                 throw new ForbiddenException("Acesso restrito a administradores.");
             }
 
-            var users = await _context.Users
-                .Select(user => MapUserToDto(user))
-                .ToListAsync();
+            var users = await _userRepository.GetAllAsync();
 
-            return Ok(users);
+            return Ok(users.Select(MapUserToDto));
         }
 
         // GET: /api/users/{id}
         [HttpGet("{id}")]
         public async Task<ActionResult<UserDto>> GetUser(Guid id)
         {
-
             if (GetUserRole() != UserRole.Admin)
             {
                 throw new ForbiddenException("Acesso restrito a administradores.");
             }
 
-            var user = await _context.Users.FindAsync(id);
+            var user = await _userRepository.GetByIdAsync(id);
 
             if (user == null)
             {
@@ -154,19 +147,18 @@ namespace WorkplaceTasks.Api.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateUser(Guid id, [FromBody] AdminUserUpdateDto updateUserDto)
         {
-
             if (GetUserRole() != UserRole.Admin)
             {
                 throw new ForbiddenException("Acesso restrito a administradores.");
             }
 
-            var user = await _context.Users.FindAsync(id);
+            var user = await _userRepository.GetByIdAsync(id);
             if (user == null)
             {
                 throw new NotFoundException($"Usuário com ID {id} não encontrado.");
             }
 
-            if (await _context.Users.AnyAsync(u => u.Email == updateUserDto.Email && u.Id != id))
+            if (await _userRepository.AnyAsync(updateUserDto.Email, id))
             {
                 return BadRequest("Este email já está em uso por outra conta.");
             }
@@ -179,8 +171,7 @@ namespace WorkplaceTasks.Api.Controllers
                 user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(updateUserDto.Password);
             }
 
-            _context.Entry(user).State = EntityState.Modified;
-            await _context.SaveChangesAsync();
+            await _userRepository.UpdateAsync(user);
 
             return NoContent();
         }
@@ -200,14 +191,13 @@ namespace WorkplaceTasks.Api.Controllers
                 return BadRequest("O admin não pode se auto-deletar.");
             }
 
-            var user = await _context.Users.FindAsync(id);
+            var user = await _userRepository.GetByIdAsync(id);
             if (user == null)
             {
                 throw new NotFoundException($"Usuário com ID {id} não encontrado.");
             }
 
-            _context.Users.Remove(user);
-            await _context.SaveChangesAsync();
+            await _userRepository.DeleteAsync(user);
 
             return NoContent();
         }
