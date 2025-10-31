@@ -11,13 +11,13 @@ using WorkplaceTasks.Infrastructure.Repositories;
 using WorkplaceTasks.Application.Services;
 
 var builder = WebApplication.CreateBuilder(args);
-
+var corsOrigin = builder.Configuration["Cors:AllowedOrigin"] ?? "http://localhost:4200";
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAngularDev",
+    options.AddPolicy("AllowAngularApp",
         policy =>
         {
-            policy.WithOrigins(["http://localhost:4200"])
+            policy.WithOrigins(corsOrigin)
                   .AllowAnyHeader()
                   .AllowAnyMethod();
         });
@@ -103,7 +103,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<GlobalErrorHandlingMiddleware>();
 app.UseHttpsRedirection();
-app.UseCors("AllowAngularDev");
+app.UseCors("AllowAngularApp");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
