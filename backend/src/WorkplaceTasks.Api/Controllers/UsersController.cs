@@ -1,0 +1,215 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using WorkplaceTasks.Application.DTOs;
+using WorkplaceTasks.Application.Exceptions;
+using WorkplaceTasks.Domain.Entities;
+using WorkplaceTasks.Domain.Enums;
+using WorkplaceTasks.Infrastructure.Data;
+
+namespace WorkplaceTasks.Api.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    [Authorize]
+    public class UsersController : ControllerBase
+    {
+        private readonly AppDbContext _context;
+        public UsersController(AppDbContext context)
+        {
+            _context = context;
+        }
+
+        private Guid GetUserId()
+        {
+            return Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        }
+
+        private UserRole GetUserRole()
+        {
+            var userRoleString = User.FindFirstValue(ClaimTypes.Role);
+            return Enum.TryParse<UserRole>(userRoleString, out var role) ? role : UserRole.Member;
+        }
+
+        private UserDto MapUserToDto(User user)
+        {
+            return new UserDto
+            {
+                Id = user.Id,
+                Email = user.Email,
+                Role = user.Role.ToString(),
+                CreatedAt = user.CreatedAt
+            };
+        }
+
+        // GET: /api/users/me
+        [HttpGet("me")]
+        public async Task<ActionResult<UserDto>> GetMyProfile()
+        {
+            var userId = GetUserId();
+            var user = await _context.Users.FindAsync(userId);
+
+            if (user == null)
+            {
+                throw new NotFoundException("Usuário não encontrado.");
+            }
+
+            return Ok(MapUserToDto(user));
+        }
+
+        // PUT: /api/users/me
+        [HttpPut("me")]
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto updateProfileDto)
+        {
+            var userId = GetUserId();
+            var user = await _context.Users.FindAsync(userId);
+
+            if (user == null)
+            {
+                throw new NotFoundException("Usuário não encontrado.");
+            }
+
+            var isCurrentPasswordValid = BCrypt.Net.BCrypt.Verify(updateProfileDto.CurrentPassword, user.PasswordHash);
+            if (!isCurrentPasswordValid)
+            {
+                return BadRequest("A senha atual está incorreta.");
+            }
+
+            if (await _context.Users.AnyAsync(u => u.Email == updateProfileDto.Email && u.Id != userId))
+            {
+                return BadRequest("Este email já está em uso por outra conta.");
+            }
+
+            user.Email = updateProfileDto.Email;
+            _context.Entry(user).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        // PUT: /api/users/change-password
+        [HttpPut("change-password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto changePasswordDto)
+        {
+            var userId = GetUserId();
+            var user = await _context.Users.FindAsync(userId);
+
+            if (user == null)
+            {
+                throw new NotFoundException("Usuário não encontrado.");
+            }
+
+            var isCurrentPasswordValid = BCrypt.Net.BCrypt.Verify(changePasswordDto.CurrentPassword, user.PasswordHash);
+            if (!isCurrentPasswordValid)
+            {
+                return BadRequest("A senha atual está incorreta.");
+            }
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(changePasswordDto.NewPassword);
+            _context.Entry(user).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        // GET: /api/users
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<UserDto>>> GetUsers()
+        {
+
+            if (GetUserRole() != UserRole.Admin)
+            {
+                throw new ForbiddenException("Acesso restrito a administradores.");
+            }
+
+            var users = await _context.Users
+                .Select(user => MapUserToDto(user))
+                .ToListAsync();
+
+            return Ok(users);
+        }
+
+        // GET: /api/users/{id}
+        [HttpGet("{id}")]
+        public async Task<ActionResult<UserDto>> GetUser(Guid id)
+        {
+
+            if (GetUserRole() != UserRole.Admin)
+            {
+                throw new ForbiddenException("Acesso restrito a administradores.");
+            }
+
+            var user = await _context.Users.FindAsync(id);
+
+            if (user == null)
+            {
+                throw new NotFoundException($"Usuário com ID {id} não encontrado.");
+            }
+
+            return Ok(MapUserToDto(user));
+        }
+
+        // PUT: /api/users/{id}
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateUser(Guid id, [FromBody] AdminUserUpdateDto updateUserDto)
+        {
+
+            if (GetUserRole() != UserRole.Admin)
+            {
+                throw new ForbiddenException("Acesso restrito a administradores.");
+            }
+
+            var user = await _context.Users.FindAsync(id);
+            if (user == null)
+            {
+                throw new NotFoundException($"Usuário com ID {id} não encontrado.");
+            }
+
+            if (await _context.Users.AnyAsync(u => u.Email == updateUserDto.Email && u.Id != id))
+            {
+                return BadRequest("Este email já está em uso por outra conta.");
+            }
+
+            user.Email = updateUserDto.Email;
+            user.Role = updateUserDto.Role;
+
+            if (!string.IsNullOrEmpty(updateUserDto.Password))
+            {
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(updateUserDto.Password);
+            }
+
+            _context.Entry(user).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+
+        // DELETE: /api/users/{id}
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteUser(Guid id)
+        {
+            if (GetUserRole() != UserRole.Admin)
+            {
+                throw new ForbiddenException("Acesso restrito a administradores.");
+            }
+
+            if (id == GetUserId())
+            {
+                return BadRequest("O admin não pode se auto-deletar.");
+            }
+
+            var user = await _context.Users.FindAsync(id);
+            if (user == null)
+            {
+                throw new NotFoundException($"Usuário com ID {id} não encontrado.");
+            }
+
+            _context.Users.Remove(user);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+    }
+}

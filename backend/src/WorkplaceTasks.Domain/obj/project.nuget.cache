@@ -1,8 +1,10 @@
 {
   "version": 2,
-  "dgSpecHash": "nnohA7xjVt0=",
+  "dgSpecHash": "N8X63zu8hqjUZnUcQoGCGzHt0BKOG5CtyV4DMse9Kw5Yq974sSeib7H3LIX4uTu8KDmLw6NH3tGVZQdXCVU7gg==",
   "success": true,
   "projectFilePath": "/Users/danillou/Projetos/workplace-tasks-challenge/backend/src/WorkplaceTasks.Domain/WorkplaceTasks.Domain.csproj",
-  "expectedPackageFiles": [],
+  "expectedPackageFiles": [
+    "/Users/danillou/.nuget/packages/bcrypt.net-next/4.0.3/bcrypt.net-next.4.0.3.nupkg.sha512"
+  ],
   "logs": []
 }
