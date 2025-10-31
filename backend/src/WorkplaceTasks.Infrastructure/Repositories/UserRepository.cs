@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using WorkplaceTasks.Application.Interfaces;
+using WorkplaceTasks.Application.Interfaces.Repositories;
 using WorkplaceTasks.Infrastructure.Data;
 
 namespace WorkplaceTasks.Infrastructure.Repositories

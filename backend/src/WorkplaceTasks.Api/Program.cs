@@ -5,8 +5,10 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using WorkplaceTasks.Infrastructure.Data;
 using WorkplaceTasks.Api.Middleware;
-using WorkplaceTasks.Application.Interfaces;
+using WorkplaceTasks.Application.Interfaces.Repositories;
+using WorkplaceTasks.Application.Interfaces.Services;
 using WorkplaceTasks.Infrastructure.Repositories;
+using WorkplaceTasks.Application.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,7 +17,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowAngularDev",
         policy =>
         {
-            policy.WithOrigins(["http://localhost:4200"]) // URL do seu app Angular
+            policy.WithOrigins(["http://localhost:4200"])
                   .AllowAnyHeader()
                   .AllowAnyMethod();
         });
@@ -27,11 +29,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
-// builder.Services.AddScoped<ITaskService, TaskService>();
-// builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ITaskService, TaskService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 
-// Adiciona os serviços de Autenticação
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -96,7 +98,7 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-    app.UseDeveloperExceptionPage(); 
+    app.UseDeveloperExceptionPage();
 }
 
 app.UseMiddleware<GlobalErrorHandlingMiddleware>();

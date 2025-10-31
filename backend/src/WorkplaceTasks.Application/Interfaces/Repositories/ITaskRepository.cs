@@ -1,4 +1,4 @@
-namespace WorkplaceTasks.Application.Interfaces
+namespace WorkplaceTasks.Application.Interfaces.Repositories
 {
     public interface ITaskRepository
     {

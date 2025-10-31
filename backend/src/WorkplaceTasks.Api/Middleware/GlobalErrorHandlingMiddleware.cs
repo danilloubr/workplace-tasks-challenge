@@ -36,15 +36,21 @@ namespace WorkplaceTasks.Api.Middleware
             switch (exception)
             {
                 case NotFoundException:
-                    statusCode = HttpStatusCode.NotFound;
+                    statusCode = HttpStatusCode.NotFound; // 404
                     message = exception.Message;
                     break;
                 case ForbiddenException:
-                    statusCode = HttpStatusCode.Forbidden;
+                    statusCode = HttpStatusCode.Forbidden; // 403
                     message = exception.Message;
                     break;
+                case BadRequestException:
+                    statusCode = HttpStatusCode.BadRequest; // 400
+                    message = exception.Message;
+                    break;
+                // ---------------------------------
+
                 default:
-                    statusCode = HttpStatusCode.InternalServerError;
+                    statusCode = HttpStatusCode.InternalServerError; // 500
                     message = "Ocorreu um erro interno no servidor.";
                     logger.LogError(exception, "Erro inesperado capturado");
                     break;
